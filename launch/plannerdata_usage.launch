@@ -1,0 +1,31 @@
+<launch>
+    <arg name="right_electric_gripper" default="true"/>
+  <arg name="left_electric_gripper" default="true"/>
+  <arg name="left_tip_name" default="left_gripper"/>
+  
+  <arg name="right_tip_name" default="right_gripper"/>
+  <param name="robot_description"
+      command="$(find xacro)/xacro.py --inorder $(find baxter_description)/urdf/baxter.urdf.xacro"/>
+  <param name="robot_description_semantic"
+      command="$(find xacro)/xacro.py --inorder $(find alternative_baxter_moveit_config)/config/baxter.srdf
+          left_electric_gripper:=$(arg left_electric_gripper)
+          right_electric_gripper:=$(arg right_electric_gripper)
+          left_tip_name:=$(arg left_tip_name)
+          right_tip_name:=$(arg right_tip_name)"/>
+
+  <!-- OMPL Plugin for MoveIt! -->
+  <arg name="planning_plugin" value="ompl_interface/OMPLPlanner" />
+  <arg name="start_state_max_bounds_error" value="0.1" />
+
+  <param name="planning_plugin" value="$(arg planning_plugin)" />
+<param name="number_of_trials" value="10000"/>
+  
+  <param name="start_state_max_bounds_error" value="$(arg start_state_max_bounds_error)" />
+
+  <rosparam command="load" file="$(find baxter_moveit_config)/config/kinematics.yaml"/>
+  <rosparam command="load" file="$(find baxter_moveit_config)/config/ompl_planning.yaml"/>
+  <node name="usage_plannerdata" pkg="collision_free_traj" type="usage_plannerdata" output="screen" launch-prefix="gdb -ex run --args">
+  <!--node name="usage_plannerdata" pkg="collision_free_traj" type="usage_plannerdata" output="screen" launch-prefix="valgrind"-->
+  <!--node name="usage_plannerdata" pkg="collision_free_traj" type="usage_plannerdata" output="screen"-->
+  </node>
+</launch>

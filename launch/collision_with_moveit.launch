@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <!--node name="joint_interface" pkg="baxter_interface" type="joint_trajectory_action_server.py"/-->
+  <!--include file="$(find collision_free_traj)/launch/move_group_mimick_node.launch" /-->
+  <node name="collision_with_moveit" pkg="collision_free_traj" type="collision_with_moveit" output="screen" args="joint_states:=/robot/joint_states" launch-prefix="gdb -ex run --args"/>
+  <!--node name="collision_with_moveit" pkg="collision_free_traj" type="collision_with_moveit" output="screen" args="joint_states:=/robot/joint_states"/--> 
+</launch>
