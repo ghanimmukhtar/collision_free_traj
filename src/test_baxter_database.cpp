@@ -2,6 +2,8 @@
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/PointCloud2.h>
 
+#include <eigen_conversions/eigen_msg.h>
+
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/ompl_interface/ompl_interface.h>
 #include <moveit/ompl_interface/parameterization/model_based_state_space.h>
@@ -39,7 +41,13 @@
 #include <pcl/surface/convex_hull.h>
 #include <pcl/conversions.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/passthrough.h>
 #include <image_processing/tools.hpp>
+
+#include <geometric_shapes/mesh_operations.h>
+#include <geometric_shapes/shape_messages.h>
+#include <geometric_shapes/shape_operations.h>
+#include <tf/transform_listener.h>
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -52,7 +60,7 @@ std::vector<double> all_joint_values, left_arm_joint_values(7);
 std::vector<std::string> all_joint_names, left_joint_names(7);
 sensor_msgs::JointState joint_state_holder;
 moveit_msgs::PlanningScene my_scene;
-pcl::PointCloud<pcl::PointXYZ>::Ptr my_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+pcl::PointCloud<pcl::PointXYZRGBA>::Ptr my_cloud (new pcl::PointCloud<pcl::PointXYZRGBA>);
 
 void jo_callback(sensor_msgs::JointState jo_state)
 {
@@ -82,8 +90,15 @@ void jo_callback(sensor_msgs::JointState jo_state)
 }
 
 void cloud_filler_callback(sensor_msgs::PointCloud2 the_cloud){
-    //ROS_ERROR_STREAM("I am saving the cloud: " << the_cloud.header.frame_id);
     pcl::fromROSMsg(the_cloud, *my_cloud);
+
+    //ROS_ERROR_STREAM("I am saving the cloud: " << the_cloud.header.frame_id);
+    pcl::PassThrough<pcl::PointXYZRGBA> pass;
+    pass.setInputCloud (my_cloud);
+    pass.setFilterFieldName ("z");
+    pass.setFilterLimits (0, 1.1);
+    pass.filter (*my_cloud);
+
 }
 
 bool isStateValid(const ob::State *state, robot_model::RobotModelPtr& robot_model, ompl_interface::ModelBasedPlanningContextPtr& context_ptr)
@@ -107,8 +122,65 @@ bool isStateValid(const ob::State *state, robot_model::RobotModelPtr& robot_mode
     return res.collision;
 }
 
-bool extract_convex_hull(std::vector<geometry_msgs::Point>& vertex_list){
-    pcl::ConvexHull<pcl::PointXYZ> hull_extractor;
+//Convert object position from camera frame to robot frame
+void convert_mesh_vertices_to_robot_base(std::vector<Eigen::Vector3d>& vertex_pose_in_camera_frame, std::vector<Eigen::Vector3d>& vertex_pose_in_robot_frame){
+    tf::TransformListener listener;
+    tf::StampedTransform stamped_transform;
+
+    try{
+        listener.lookupTransform("/camera_depth_optical_frame", "/base",
+                                 ros::Time::now(), stamped_transform);
+    }
+    catch (tf::TransformException &ex) {
+        ROS_ERROR("%s",ex.what());
+        ros::Duration(1.0).sleep();
+    }
+
+    std::vector<Eigen::Vector3d>::iterator itr;
+    for(itr = vertex_pose_in_camera_frame.begin(); itr != vertex_pose_in_camera_frame.end(); ++itr){
+        geometry_msgs::PointStamped camera_point;
+        geometry_msgs::PointStamped base_point;
+        camera_point.header.frame_id = "/camera_depth_optical_frame";
+
+        //we'll just use the most recent transform available for our simple example
+        camera_point.header.stamp = ros::Time();
+
+        //just an arbitrary point in space
+        camera_point.point.x = (*itr)(0);
+        camera_point.point.y = (*itr)(1);
+        camera_point.point.z = (*itr)(2);
+
+        try{
+
+            listener.transformPoint("/base", camera_point, base_point);
+
+            ROS_INFO("camera_link: (%.2f, %.2f. %.2f) -----> base_link: (%.2f, %.2f, %.2f) at time %.2f",
+                     camera_point.point.x, camera_point.point.y, camera_point.point.z,
+                     base_point.point.x, base_point.point.y, base_point.point.z, base_point.header.stamp.toSec());
+        }
+        catch(tf::TransformException& ex){
+            ROS_ERROR("Received an exception trying to transform a point from \"base_laser\" to \"base_link\": %s", ex.what());
+        }
+        Eigen::Vector3d point_in_robot_frame;
+        point_in_robot_frame << base_point.point.x,
+                base_point.point.y,
+                base_point.point.z;
+        vertex_pose_in_robot_frame.push_back(point_in_robot_frame);
+    }
+}
+
+
+std::vector<geometry_msgs::Point> convert_eigen_point_geometry(std::vector<Eigen::Vector3d>& vertex_list){
+    ROS_ERROR_STREAM("i am convering eigen vectors into geometry msgs, the size is: " << vertex_list.size());
+    std::vector<Eigen::Vector3d>::iterator itr;
+    std::vector<geometry_msgs::Point> output_vertices;
+    for(itr = vertex_list.begin(); itr != vertex_list.end(); ++itr){
+        geometry_msgs::Point current_vertex;
+        tf::pointEigenToMsg(*itr, current_vertex);
+        output_vertices.push_back(current_vertex);
+    }
+    return output_vertices;
+    /*pcl::ConvexHull<pcl::PointXYZ> hull_extractor;
     pcl::PointCloud<pcl::PointXYZ> hull_cloud;
     //my_cloud = my_cloud_class.Ptr;
     hull_extractor.setInputCloud(my_cloud);
@@ -127,22 +199,34 @@ bool extract_convex_hull(std::vector<geometry_msgs::Point>& vertex_list){
         vertex_list.push_back(new_point);
     }
 
-    return true;
+    return true;*/
 }
-
-
 
 void add_collision_objects(moveit_msgs::PlanningScene& my_scene){
     moveit_msgs::CollisionObject collision_object;
     collision_object.header.frame_id = "/base";
     collision_object.id = "box1";
     shape_msgs::Mesh primitive_1;
+    shapes::ShapeMsg co_mesh_msg;
 
-    std::vector<geometry_msgs::Point> vertices;
     //my_cloud = my_cloud_class.ConstPtr;
-    extract_convex_hull(vertices);
+    std::vector<Eigen::Vector3d> vertex_list, vertex_list_in_camera_frame;
+
+    image_processing::tools::extract_convex_hull(my_cloud, vertex_list_in_camera_frame);
+
+    convert_mesh_vertices_to_robot_base(vertex_list_in_camera_frame, vertex_list);
+
+    EigenSTL::vector_Vector3d vertices_source;
+    std::vector<Eigen::Vector3d>::iterator itr;
+    for(itr = vertex_list.begin(); itr != vertex_list.end(); ++itr)
+        vertices_source.push_back(*itr);
+
+    shapes::Mesh* m = shapes::createMeshFromVertices(vertices_source);
+    shapes::constructMsgFromShape(m, co_mesh_msg);
+    primitive_1  = boost::get<shape_msgs::Mesh>(co_mesh_msg);
+
+    /*std::vector<geometry_msgs::Point> vertices = convert_eigen_point_geometry(vertex_list);
     primitive_1.vertices = vertices;
-    /*
     shape_msgs::SolidPrimitive primitive;
     primitive.type = primitive.BOX;
     primitive.dimensions.resize(3);
@@ -155,13 +239,21 @@ void add_collision_objects(moveit_msgs::PlanningScene& my_scene){
     box_pose.position.y =  0.0;
     box_pose.position.z =  -0.15;
     */
+
+    geometry_msgs::Pose box_pose;
+    box_pose.orientation.w = 1.0;
+    box_pose.position.x =  0.7;
+    box_pose.position.y =  0.0;
+    box_pose.position.z =  -0.15;
     collision_object.meshes.push_back(primitive_1);
+    collision_object.mesh_poses.push_back(box_pose);
     //collision_object.primitives.push_back(primitive_1);
     //collision_object.primitive_poses.push_back(box_pose);
     collision_object.operation = collision_object.ADD;
     ROS_INFO("Add an object into the world");
     my_scene.world.collision_objects.push_back(collision_object);
 }
+
 
 template <typename T>
 static ompl::base::PlannerPtr allocatePlanner(const ob::SpaceInformationPtr& si, const std::string& new_name,
@@ -176,6 +268,7 @@ static ompl::base::PlannerPtr allocatePlanner(const ob::SpaceInformationPtr& si,
   return planner;
 }
 
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "test_baxter_database");
@@ -186,7 +279,7 @@ int main(int argc, char** argv)
     ros::Subscriber cloud_filler_sub = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 10, cloud_filler_callback);
     ros::Publisher planning_scene_publish = nh.advertise<moveit_msgs::PlanningScene>("/planning_scene", 1);
 
-    ros::AsyncSpinner spinner(4);
+    ros::AsyncSpinner spinner(14);
     spinner.start();
     nh.getParam("number_of_trials", number_of_trials);
     nh.getParam("size_initial_db", size_initial_db);
@@ -229,7 +322,7 @@ int main(int argc, char** argv)
     group.setStartState(start_state);
     if(check_collision)
         //my_thunder->setFilePath("test_collision_check_fix_start");
-        my_thunder->setFilePath("bolt_both_arms_0.500000_database.ompl");
+        my_thunder->setFilePath("testfari");
     else
         my_thunder->setFilePath("test_without_collision_check");
 
