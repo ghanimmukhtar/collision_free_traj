@@ -120,7 +120,9 @@ void add_collision_objects(moveit_msgs::PlanningScene& my_scene){
 
     std::vector<Eigen::Vector3d> vertex_list, vertex_list_in_camera_frame;
 
+    ROS_WARN("trying to extract convexhull");
     image_processing::tools::extract_convex_hull(my_cloud, vertex_list_in_camera_frame);
+    ROS_WARN("convexhull extracted");
 
     convert_mesh_vertices_to_robot_base(vertex_list_in_camera_frame, vertex_list);
 
