@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
 
 
-set(CMAKE_MODULE_PATH    "/home/ghanim/ws_moveit/src/collision_free_traj/")
+#set(CMAKE_MODULE_PATH    "/home/ghanim/ws_moveit/src/collision_free_traj/")
 
 
 find_package(Eigen3 REQUIRED)
@@ -43,20 +43,8 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
-#add_executable(generate_roadmap_randomly src/generate_roadmap_randomly.cpp)
-#target_link_libraries(generate_roadmap_randomly ${catkin_LIBRARIES} ${Boost_SERIALIZATION_LIBRARY})
-
 add_executable(generate_baxter_database_moveit src/generate_baxter_database_moveit.cpp)
 target_link_libraries(generate_baxter_database_moveit ${catkin_LIBRARIES}  )
-#${Boost_SERIALIZATION_LIBRARY}  ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY})
-
-add_executable(generate_baxter_database_pure src/generate_baxter_database_pure.cpp)
-target_link_libraries(generate_baxter_database_pure ${catkin_LIBRARIES}  
-${Boost_SERIALIZATION_LIBRARY}  
-${Boost_FILESYSTEM_LIBRARY} 
-${Boost_SYSTEM_LIBRARY} 
-${Boost_PROGRAM_OPTIONS_LIBRARY}
-${Boost_THREAD_LIBRARY})
 
 add_executable(test_baxter_database src/test_baxter_database.cpp)
 target_link_libraries(test_baxter_database ${catkin_LIBRARIES}  ${Boost_SERIALIZATION_LIBRARY}  
@@ -71,9 +59,6 @@ target_link_libraries(collision_with_moveit ${catkin_LIBRARIES} )
 
 add_executable(test_ikfast src/test_ikfast.cpp)
 target_link_libraries(test_ikfast ${catkin_LIBRARIES} )
-
-#add_executable(thunderlighting_example src/thunderlighting_example.cpp)
-#target_link_libraries(thunderlighting_example ${catkin_LIBRARIES}  ${Boost_SERIALIZATION_LIBRARY}  ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_PROGRAM_OPTIONS_LIBRARY})
 
 #add_executable(refined_baxter_collision_free src/refined_baxter_collision_free.cpp)
 #target_link_libraries(refined_baxter_collision_free ${catkin_LIBRARIES})
