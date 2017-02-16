@@ -5,6 +5,10 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface 
   moveit_ros_planning 
   moveit_planners_ompl
+  descartes_core
+  descartes_moveit
+  descartes_trajectory
+  descartes_planner
   trajectory_msgs
   roscpp
   rospy
@@ -66,8 +70,8 @@ target_link_libraries(test_ikfast ${catkin_LIBRARIES} )
 #add_executable(naive_try src/naive_try.cpp)
 #target_link_libraries(naive_try ${catkin_LIBRARIES})
 
-#add_executable(obstacle_avoidance_traj src/obstacle_avoidance_traj.cpp)
-#target_link_libraries(obstacle_avoidance_traj ${catkin_LIBRARIES})
+add_executable(obstacle_avoidance_traj src/obstacle_avoidance_traj.cpp)
+target_link_libraries(obstacle_avoidance_traj ${catkin_LIBRARIES})
 
 #add_executable(test_joint_action_left src/test_joint_action_left.cpp)
 #target_link_libraries(test_joint_action_left ${catkin_LIBRARIES})
