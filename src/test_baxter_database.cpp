@@ -206,7 +206,8 @@ void add_collision_objects(moveit_msgs::PlanningScene& my_scene){
     moveit_msgs::CollisionObject collision_object;
     collision_object.header.frame_id = "/base";
     collision_object.id = "box1";
-    shape_msgs::Mesh primitive_1;
+    //try to use convexhull extraction
+    /*shape_msgs::Mesh primitive_1;
     shapes::ShapeMsg co_mesh_msg;
 
     //my_cloud = my_cloud_class.ConstPtr;
@@ -225,30 +226,26 @@ void add_collision_objects(moveit_msgs::PlanningScene& my_scene){
     shapes::constructMsgFromShape(m, co_mesh_msg);
     primitive_1  = boost::get<shape_msgs::Mesh>(co_mesh_msg);
 
-    /*std::vector<geometry_msgs::Point> vertices = convert_eigen_point_geometry(vertex_list);
-    primitive_1.vertices = vertices;
+    std::vector<geometry_msgs::Point> vertices = convert_eigen_point_geometry(vertex_list);
+    primitive_1.vertices = vertices;*/
+
+    //test with simple primitive
     shape_msgs::SolidPrimitive primitive;
     primitive.type = primitive.BOX;
     primitive.dimensions.resize(3);
     primitive.dimensions[0] = 0.8;
     primitive.dimensions[1] = 1.4;
-    primitive.dimensions[2] = 0.1;
-    geometry_msgs::Pose box_pose;
-    box_pose.orientation.w = 1.0;
-    box_pose.position.x =  0.7;
-    box_pose.position.y =  0.0;
-    box_pose.position.z =  -0.15;
-    */
+    primitive.dimensions[2] = 0.1;    
 
     geometry_msgs::Pose box_pose;
     box_pose.orientation.w = 1.0;
     box_pose.position.x =  0.7;
     box_pose.position.y =  0.0;
     box_pose.position.z =  -0.15;
-    collision_object.meshes.push_back(primitive_1);
-    collision_object.mesh_poses.push_back(box_pose);
-    //collision_object.primitives.push_back(primitive_1);
-    //collision_object.primitive_poses.push_back(box_pose);
+    //collision_object.meshes.push_back(primitive_1);
+    //collision_object.mesh_poses.push_back(box_pose);
+    collision_object.primitives.push_back(primitive);
+    collision_object.primitive_poses.push_back(box_pose);
     collision_object.operation = collision_object.ADD;
     ROS_INFO("Add an object into the world");
     my_scene.world.collision_objects.push_back(collision_object);
@@ -275,8 +272,8 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
 
     //actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> ac("/robot/limb/left/follow_joint_trajectory", true);
-    ros::Subscriber joint_state_sub = nh.subscribe<sensor_msgs::JointState>("/robot/joint_states", 1, jo_callback);
-    ros::Subscriber cloud_filler_sub = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 10, cloud_filler_callback);
+    //ros::Subscriber joint_state_sub = nh.subscribe<sensor_msgs::JointState>("/robot/joint_states", 1, jo_callback);
+    //ros::Subscriber cloud_filler_sub = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 10, cloud_filler_callback);
     ros::Publisher planning_scene_publish = nh.advertise<moveit_msgs::PlanningScene>("/planning_scene", 1);
 
     ros::AsyncSpinner spinner(14);
@@ -290,14 +287,18 @@ int main(int argc, char** argv)
     robot_model::RobotModelPtr robot_model = robot_model_loader.getModel();
 
     robot_state::RobotState start_state(robot_model);
-    start_state.setVariablePositions(all_joint_names, all_joint_values);
+    //use this to give meaningful goals/starts
+    //start_state.setFromIK()
+    //start_state.setVariablePositions(all_joint_names, all_joint_values);
+    start_state.setToRandomPositions();
 
 
     planning_scene::PlanningScenePtr planning_scene(new planning_scene::PlanningScene(robot_model));
     my_scene.robot_model_name = "baxter";
 
     add_collision_objects(my_scene);
-    my_scene.robot_state.joint_state = joint_state_holder;
+    //my_scene.robot_state.joint_state = joint_state_holder;
+    moveit::core::robotStateToRobotStateMsg(start_state, my_scene.robot_state);
     my_scene.is_diff = true;
     planning_scene->setCurrentState(start_state);
     planning_scene_publish.publish(my_scene);
@@ -307,7 +308,7 @@ int main(int argc, char** argv)
     planning_interface::PlannerConfigurationMap my_map = oi.getPlannerConfigurations();
     oi.setPlannerConfigurations(my_map);
 
-    std::string arm_choice = "both_arms";
+    std::string arm_choice = "left_arm";
 
     ompl_interface::PlanningContextManager context_manager = oi.getPlanningContextManager();
     ompl_interface::ModelBasedPlanningContextPtr context = context_manager.getPlanningContext(arm_choice, "JointModel");
@@ -316,13 +317,13 @@ int main(int argc, char** argv)
     ot::ThunderPtr my_thunder(new ot::Thunder(space));
     ob::ValidStateSamplerPtr vss = my_thunder->getSpaceInformation()->allocValidStateSampler();
 
-    moveit::planning_interface::MoveGroup group(arm_choice);
-    moveit::planning_interface::MoveGroup::Plan my_plan;
-    group.setPlannerId("RRTConnectkConfigDefault");
-    group.setStartState(start_state);
+    //moveit::planning_interface::MoveGroup group(arm_choice);
+    //moveit::planning_interface::MoveGroup::Plan my_plan;
+    //group.setPlannerId("RRTConnectkConfigDefault");
+    //group.setStartState(start_state);
     if(check_collision)
-        //my_thunder->setFilePath("test_collision_check_fix_start");
-        my_thunder->setFilePath("testfari");
+        my_thunder->setFilePath("test_collision_check");
+        //my_thunder->setFilePath("testfari");
     else
         my_thunder->setFilePath("test_without_collision_check");
 
@@ -335,15 +336,17 @@ int main(int argc, char** argv)
     int number_at_start = my_thunder->getExperienceDB()->getSPARSdb()->getNumVertices();
     ompl_interface::ModelBasedStateSpacePtr model_based_state_space = context->getOMPLStateSpace();
     ob::ScopedState<> start(my_thunder->getStateSpace());
+    //generate random start configuration
     //vss->sample(start.get());
     //model_based_state_space->copyToRobotState(start_state, start.get());
+    //get start configuration from joint states
     model_based_state_space->copyToOMPLState(start.get(), start_state);
     moveit::core::robotStateToRobotStateMsg(start_state, my_scene.robot_state);
     my_scene.is_diff = true;
     planning_scene_publish.publish(my_scene);
     planning_scene->setPlanningSceneDiffMsg(my_scene);
 
-    group.setStartState(start_state);
+    //group.setStartState(start_state);
     context->setPlanningScene(planning_scene);
 
     int solutions_from_recall = 0, solutions_from_scratch = 0, no_solutions_thunder = 0, no_solutions_rrt = 0, size_data_base_before = 0;
@@ -396,6 +399,8 @@ int main(int argc, char** argv)
 
         ob::ScopedState<> goal(my_thunder->getStateSpace());
         vss->sample(goal.get());
+        /*
+        //test of moveit can solve for this random goal
         group.setJointValueTarget(goal.reals());
         if(group.plan(my_plan)){
 
@@ -405,7 +410,7 @@ int main(int argc, char** argv)
         }
         else
             ROS_ERROR("move group couldn't plan .... let's see thunder");
-        /*group.setRandomTarget();
+        group.setRandomTarget();
         robot_state::RobotState robot_goal = group.getJointValueTarget();
         model_based_state_space->copyToOMPLState(goal.get(), robot_goal);
         */
@@ -424,7 +429,7 @@ int main(int argc, char** argv)
             my_thunder->doPostProcessing();
 
             //my_thunder->saveIfChanged();
-            /*
+
             // convert the ompl path to robot trajectory
             og::PathGeometric my_path = my_thunder->getSolutionPath();
             robot_trajectory::RobotTrajectory my_robot_trajectory(robot_model, arm_choice);
@@ -469,14 +474,14 @@ int main(int argc, char** argv)
             OMPL_INFORM("No solution found");
 
         ROS_WARN_STREAM("this is iteration no: " << i);
-        /*
-        my_scene.robot_state.joint_state = joint_state_holder;
+
+        //my_scene.robot_state.joint_state = joint_state_holder; //in case of executing a trajectory update the planning scene
         my_scene.is_diff = true;
         planning_scene_publish.publish(my_scene);
         planning_scene->setPlanningSceneDiffMsg(my_scene);
         my_thunder->clear();
         context->setPlanningScene(planning_scene);
-        */
+
         collision_detection::CollisionWorldConstPtr my_world = context->getPlanningScene()->getCollisionWorld();
         std::vector<std::string> my_world_objects = my_world->getWorld()->getObjectIds();
         ROS_WARN_STREAM("object number is: " << my_world_objects.size());

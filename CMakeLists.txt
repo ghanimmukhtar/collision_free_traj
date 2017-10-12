@@ -10,13 +10,10 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tf
-  #ompl
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
 
-
-set(CMAKE_MODULE_PATH    "/home/ghanim/ws_moveit/src/collision_free_traj/")
 
 
 find_package(Eigen3 REQUIRED)

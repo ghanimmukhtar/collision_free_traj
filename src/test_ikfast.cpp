@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     ros::ServiceClient get_motion_plan = node.serviceClient<moveit_msgs::GetMotionPlan>("plan_kinematic_path",1);
     ros::ServiceClient execute_trajectory = node.serviceClient<moveit_msgs::ExecuteKnownTrajectory>("execute_kinematic_path", 1);
 
-    ros::AsyncSpinner my_spinner(4);
+    ros::AsyncSpinner my_spinner(1);
     my_spinner.start();
     robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
     robot_model::RobotModelPtr robot_model = robot_model_loader.getModel();
@@ -103,9 +103,9 @@ int main(int argc, char **argv)
     node.getParam("number_of_trials", number_of_trials);
     while(ros::ok() && counter < number_of_trials){
         std::cin.ignore();
-        //double x, y, z;
-        //std::cin >> x >> y >> z;
-        /*
+        double x, y, z;
+        std::cin >> x >> y >> z;
+
         moveit_msgs::MotionPlanRequest req2;
         moveit_msgs::GetMotionPlanRequest req3;
         moveit_msgs::GetMotionPlanResponse res3;
@@ -118,11 +118,11 @@ int main(int argc, char **argv)
         position.point.x = x;
         position.point.y = y;
         position.point.z = z;
-        */
-        group.setRandomTarget();
+
+        //group.setRandomTarget();
         //group.setPositionTarget(x, y, z);
-        group.plan(my_plan);
-        /*
+        //group.plan(my_plan);
+
 
         req2.group_name = "left_arm";
         req2.planner_id = "RRTStarkConfigDefault";
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
         ros::Publisher display_publisher = node.advertise<moveit_msgs::DisplayTrajectory>("/move_group/display_planned_path", 1, true);
         moveit_msgs::DisplayTrajectory display_trajectory;
 
-        /* Visualize the trajectory
+        /* Visualize the trajectory*/
         ROS_INFO("Visualizing the trajectory");
 
         display_trajectory.trajectory_start = res3.motion_plan_response.trajectory_start;
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
         traj_req.trajectory = res3.motion_plan_response.trajectory;
         traj_req.wait_for_execution = true;
 
-        execute_trajectory.call(traj_req, traj_res);*/
+        execute_trajectory.call(traj_req, traj_res);
 
         counter+=1;
     }

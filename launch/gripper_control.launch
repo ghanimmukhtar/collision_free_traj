@@ -1,0 +1,8 @@
+<launch>
+  <param name="gripper_id" value="131073"/> <!-- id for left gripper in simulation, seems like also the same for the right -->
+  <arg name="position" default="0.0"/> 
+<param name="position" value="$(arg position)"/>
+  <node name="gripper_control" pkg="collision_free_traj" type="gripper_control" output="screen" args="joint_states:=/robot/joint_states" >
+    
+  </node>
+</launch>
